@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cartographie formations IA — Canton de Vaud</title>
+<style>
+  :root {
+    --bg: #f7f4ef;
+    --ink: #1c1917;
+    --muted: #57534e;
+    --line: #d6d3d1;
+    --card: #fffcf7;
+    --accent: #0B3D5C;
+    --cluster: rgba(192, 57, 43, 0.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.45;
+  }
+  header {
+    padding: 28px 32px 12px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 1.55rem;
+    font-weight: 600;
+    margin: 0 0 8px;
+    letter-spacing: -0.02em;
+  }
+  .sub {
+    color: var(--muted);
+    max-width: 70ch;
+    margin: 0;
+    font-size: 0.95rem;
+  }
+  nav.tabs {
+    display: flex;
+    gap: 8px;
+    padding: 16px 32px;
+    max-width: 1280px;
+    margin: 0 auto;
+    flex-wrap: wrap;
+  }
+  nav.tabs button {
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink);
+    padding: 8px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  nav.tabs button[aria-selected="true"] {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  main {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 32px 48px;
+  }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+    gap: 20px;
+    align-items: start;
+  }
+  .side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+  @media (max-width: 720px) {
+    .layout {
+      grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
+      gap: 12px;
+    }
+    .map-wrap { min-height: 380px; }
+  }
+  @media (max-width: 560px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .map-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1.25 / 1;
+    min-height: 520px;
+  }
+  svg.map {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .axis-label {
+    fill: var(--muted);
+    font-size: 12px;
+  }
+  .tick {
+    fill: var(--muted);
+    font-size: 11px;
+  }
+  .dot {
+    cursor: pointer;
+    stroke: #fff;
+    stroke-width: 1.5;
+    opacity: 0.92;
+  }
+  .dot.dim { opacity: 0.12; }
+  .dot.lit {
+    opacity: 1;
+    stroke: var(--ink);
+    stroke-width: 2.2;
+  }
+  .dot.active {
+    stroke: var(--ink);
+    stroke-width: 3;
+    opacity: 1;
+  }
+  .cluster-zone {
+    fill: var(--cluster);
+    stroke: rgba(192, 57, 43, 0.25);
+    stroke-dasharray: 4 3;
+  }
+  .cluster-label {
+    fill: #922B21;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .legend {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 420px;
+    overflow: auto;
+  }
+  .legend label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+  .swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+  }
+  .detail {
+    position: relative;
+  }
+  .detail h2 {
+    font-size: 1rem;
+    margin: 0 110px 8px 0;
+  }
+  .detail-top-right {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .duree-tag {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.72rem;
+    font-weight: 500;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 4px 9px;
+    background: #1c1917;
+    color: #fffcf7;
+    white-space: nowrap;
+    line-height: 1.2;
+  }
+  .duree-tag.soft {
+    background: #fff;
+    color: var(--ink);
+  }
+  .lang-flags {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .lang-flag {
+    display: block;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex: 0 0 auto;
+    box-shadow: 0 0 0 1px rgba(28, 25, 23, 0.12);
+    background: #fff;
+  }
+  .lang-flag img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+  }
+  .detail p {
+    margin: 0 0 8px;
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+  .detail .meta {
+    font-size: 0.82rem;
+    color: var(--ink);
+  }
+  .detail a {
+    color: var(--accent);
+    font-size: 0.85rem;
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .chip {
+    font-size: 0.72rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 2px 8px;
+    background: #fff;
+  }
+  table.matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    background: var(--card);
+  }
+  table.matrix th, table.matrix td {
+    border: 1px solid var(--line);
+    padding: 8px;
+    text-align: center;
+    vertical-align: top;
+  }
+  table.matrix th {
+    background: #eeeae4;
+    font-weight: 500;
+  }
+  table.matrix th.org {
+    text-align: left;
+    min-width: 120px;
+    position: sticky;
+    left: 0;
+    background: #eeeae4;
+    z-index: 1;
+  }
+  table.matrix td.org {
+    text-align: left;
+    font-weight: 500;
+    position: sticky;
+    left: 0;
+    background: var(--card);
+  }
+  table.matrix td.hot {
+    background: #fde8e6;
+    cursor: pointer;
+  }
+  table.matrix td.warm {
+    background: #fdf2e9;
+    cursor: pointer;
+  }
+  table.matrix td.cool {
+    background: #eaf6f2;
+    cursor: pointer;
+  }
+  table.matrix td.empty {
+    color: #a8a29e;
+  }
+  .matrix-wrap {
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  .note {
+    margin-top: 12px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .filter-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .filter-row {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 12px;
+    align-items: start;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 12px;
+  }
+  .filter-row .filter-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding-top: 8px;
+  }
+  .filter-row .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+  }
+  .filters button {
+    border: 1px solid var(--line);
+    background: #fff;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .filters button[aria-pressed="true"] {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .org-card .filter-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .org-card .filters {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    max-height: none;
+    overflow: visible;
+  }
+  .org-card .filters button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-align: left;
+    width: 100%;
+  }
+  .org-card .filters .swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+  }
+  @media (max-width: 720px) {
+    .filter-row {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    .filter-row .filter-label { padding-top: 0; }
+    .org-card .filters {
+      max-height: min(320px, 45vh);
+      overflow: auto;
+    }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cartographie des formations IA — Canton de Vaud</h1>
+  <p class="sub">
+    Vue des zones de couverture dense entre acteurs éligibles
+    (académique, public, eduQua). 53 offres positionnées.
+    Les zones rouge pâle marquent les concentrations thématiques.
+  </p>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Vues">
+  <button role="tab" id="tab-map" aria-selected="true" aria-controls="panel-map">Carte de positionnement</button>
+  <button role="tab" id="tab-matrix" aria-selected="false" aria-controls="panel-matrix">Matrice acteurs × thèmes</button>
+</nav>
+
+<main>
+  <section id="panel-map" class="panel active" role="tabpanel" aria-labelledby="tab-map">
+    <div class="filter-stack">
+      <div class="filter-row">
+        <div class="filter-label">Public</div>
+        <div class="filters" id="audience-filters" aria-label="Filtrer par type de formation"></div>
+      </div>
+      <div class="filter-row">
+        <div class="filter-label">Thème</div>
+        <div class="filters" id="theme-filters" aria-label="Filtrer par thème"></div>
+      </div>
+    </div>
+    <div class="layout">
+      <div class="card">
+        <div class="map-wrap">
+          <svg class="map" id="map" viewBox="0 0 1000 780" role="img" aria-label="Carte public versus intensite des offres IA"></svg>
+        </div>
+      </div>
+      <div class="side-panel">
+        <div class="card detail" id="detail">
+          <h2>Sélectionnez une offre</h2>
+          <p>Survolez ou cliquez un point. Utilisez les filtres Public, Thème et Organisme.</p>
+        </div>
+        <div class="card org-card">
+          <div class="filter-label">Organisme</div>
+          <div class="filters" id="org-filters" aria-label="Filtrer par organisme"></div>
+        </div>
+      </div>
+    </div>
+    <p class="note">
+      Axes dérivés du catalogue (pas une mesure officielle) :
+      horizontal = public cible, vertical = durée réelle (jours de cours / durée du parcours).
+      Ex. : Pilote CEFCO = Diplôme 102 h (au-dessus du Certificat Gestionnaire et des diplômes SAWI ~39 h ; sous CAS / brevet).
+      La Cohorte IA Innovaud est un parcours collectif sans diplôme officiel. Trust4SMEs est connexe (cyber).
+    </p>
+  </section>
+
+  <section id="panel-matrix" class="panel" role="tabpanel" aria-labelledby="tab-matrix">
+    <div class="card">
+      <p class="sub" style="margin-bottom:12px">
+        Nombre d’offres par acteur et thème. Rouge = zone dense (≥3), orange = 2, vert = 1.
+        Cliquez une case pour lister les offres.
+      </p>
+      <div class="matrix-wrap">
+        <table class="matrix" id="matrix"></table>
+      </div>
+      <div id="matrix-detail" class="note"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const DATA = {"offers": [{"id": 0,"nom": "Data science & management (CAS)","org": "UNIL / EPFL (HEC Lausanne)","org_key": "UNIL/EPFL","cat": "Certificat / Diplôme","niveau": "Intermédiaire","duree": "16 jours / 9 mois","public": "Individu","lien": "https://execed.unil.ch/formation-continue/certificat-data","desc": "CAS conjoint HEC Lausanne–EPFL : transformation data & IA, perspectives business et technologiques. 4 modules + Individual Data Project.","x": 4.0,"y": 3.95,"themes": ["decideurs","gouvernance","initiation"],"connexe": false,"color": "#0D9488","langue": "Anglais","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "16 j.","duree_jours": 16,"audience_individu": true,"audience_entreprise": false},{"id": 1,"nom": "Transforming Business with AI & Data Tech (CAS Value Chain Data Technologies)","org": "EPFL","org_key": "UNIL/EPFL","cat": "Certificat / Diplôme","niveau": "Avancé","duree": "12 jours (4 × 3 j.) / 3 mois","public": "Individu","lien": "https://www.epfl.ch/education/continuing-education/key-actors/srvc/value-chain-data-technologies/","desc": "CAS Value Chain Data Technologies : IA, IoT, digital twins et transformation de chaînes de valeur.","x": 4.0,"y": 3.75,"themes": ["decideurs"],"connexe": false,"color": "#0D9488","langue": "Anglais","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "12 j.","duree_jours": 12,"audience_individu": true,"audience_entreprise": false},{"id": 2,"nom": "Applied AI: Data Analytics and Machine Learning (DAS)","org": "EPFL","org_key": "UNIL/EPFL","cat": "Certificat / Diplôme","niveau": "Intermédiaire","duree": "~900 h / jusqu'à 27 mois (autorythme)","public": "Individu","lien": "https://www.formation-continue-unil-epfl.ch/formation/applied-ai/","desc": "DAS EPFL Extension School + EPFL AI Center : parcours Python analytics → ML → deep learning + capstone (30 ECTS).","x": 5.0,"y": 4.05,"themes": ["technique","llm"],"connexe": false,"color": "#0D9488","langue": "Anglais","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "autorythme","duree_jours": null,"audience_individu": true,"audience_entreprise": false},{"id": 3,"nom": "COS Applied Data Analytics and Visualization","org": "EPFL","org_key": "UNIL/EPFL","cat": "Certificat / Diplôme","niveau": "Intermédiaire","duree": "Autorythme (volets du DAS, ~10 ECTS)","public": "Individu","lien": "https://www.formation-continue-unil-epfl.ch/formation/applied-ai/","desc": "1er volet empilable du DAS Applied AI (10 ECTS) : workflow analytics Python, visualisation, storytelling.","x": 5.0,"y": 3.7,"themes": ["technique"],"connexe": false,"color": "#0D9488","langue": "Anglais","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "autorythme","duree_jours": null,"audience_individu": true,"audience_entreprise": false},{"id": 4,"nom": "COS Applied Machine Learning","org": "EPFL","org_key": "UNIL/EPFL","cat": "Certificat / Diplôme","niveau": "Intermédiaire","duree": "Autorythme (volets du DAS, ~10 ECTS)","public": "Individu","lien": "https://www.formation-continue-unil-epfl.ch/formation/applied-ai/","desc": "2e volet empilable du DAS Applied AI (10 ECTS). Remplace/enrichit l'ancien COS Applied Data Science: Machine Learning.","x": 5.0,"y": 3.85,"themes": ["technique"],"connexe": false,"color": "#0D9488","langue": "Anglais","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "autorythme","duree_jours": null,"audience_individu": true,"audience_entreprise": false},{"id": 5,"nom": "Brevet fédéral AI Business Specialist","org": "CEFCO","org_key": "CEFCO","cat": "Certificat / Diplôme","niveau": "Avancé","duree": "321 h / 9–10 mois","public": "Individu","lien": "https://ia-digital.cefco.ch/formation/ai-business-specialist/programme","desc": "Préparation au brevet fédéral AI Business Specialist : conception, planification et mise en œuvre de projets IA stratégiques.","x": 3.5,"y": 4.1,"themes": ["decideurs","praticien","gouvernance"],"connexe": false,"color": "#9A3412","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "321 h","duree_jours": 40,"audience_individu": true,"audience_entreprise": false},{"id": 6,"nom": "Gestionnaire en IA / Praticien·ne de la transformation IA","org": "CEFCO","org_key": "CEFCO","cat": "Certificat / Diplôme","niveau": "Débutant","duree": "Soirs + samedis (certificat CEFCO) — nb d'heures à confirmer","public": "Individu","lien": "https://ia-digital.cefco.ch/formation/praticienne-de-la-transformation-ia/programme","desc": "Certificat CEFCO (1re marche vers le brevet fédéral). Alias marketing : Gestionnaire en IA = Praticien·ne de la transformation IA (même programme).","x": 2.5,"y": 3.15,"themes": ["praticien","initiation"],"connexe": false,"color": "#9A3412","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "certificat","duree_jours": null,"audience_individu": true,"audience_entreprise": false},{"id": 7,"nom": "Pilote de la transformation IA","org": "CEFCO","org_key": "CEFCO","cat": "Certificat / Diplôme","niveau": "Intermédiaire","duree": "102 h (hybride, diplôme CEFCO)","public": "Individu","lien": "https://ia-digital.cefco.ch/formation/pilote-de-la-transformation-ia/programme","desc": "Diplôme CEFCO (102 h) : piloter un projet IA de bout en bout (stratégie, business case, agile/CRISP-DM, fournisseurs, change, jury).","x": 3.2,"y": 3.55,"themes": ["praticien","decideurs"],"connexe": false,"color": "#9A3412","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "102 h","duree_jours": 13,"audience_individu": true,"audience_entreprise": false},{"id": 8,"nom": "Praticien en Intelligence Artificielle","org": "SAWI","org_key": "SAWI","cat": "Certificat / Diplôme","niveau": "Débutant","duree": "39 h / ~2 mois (hybride soir/samedi)","public": "Individu","lien": "https://sawi.com/formation-communication/praticien-en-intelligence-artificielle/","desc": "Diplôme SAWI (~2 mois) : fondamentaux IA/IAG, panorama outils, prompt engineering, droit, éthique, créativité, automatisation & agents.","x": 2.3,"y": 3.25,"themes": ["praticien","initiation","llm"],"connexe": false,"color": "#DB2777","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "39 h / 2 mois","duree_jours": 5,"audience_individu": true,"audience_entreprise": false},{"id": 9,"nom": "Spécialiste en Intelligence Artificielle Marketing et Communication","org": "SAWI","org_key": "SAWI","cat": "Certificat / Diplôme","niveau": "Intermédiaire","duree": "31 h / ~2 mois (prérequis Praticien IA)","public": "Individu","lien": "https://sawi.com/formation-communication/specialiste-en-intelligence-artificielle-marketing-et-communication/","desc": "Spécialisation MarCom : projet diplôme IA appliqué marketing/communication.","x": 2.2,"y": 3.3,"themes": ["praticien","vertical"],"connexe": false,"color": "#DB2777","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "31 h / 2 mois","duree_jours": 4,"audience_individu": true,"audience_entreprise": false},{"id": 10,"nom": "CAS Data science — Module 1 : The data & AI-driven enterprise","org": "UNIL / EPFL (HEC Lausanne)","org_key": "UNIL/EPFL","cat": "Formation courte","niveau": "Débutant","duree": "4 jours","public": "Individu","lien": "https://execed.unil.ch/formation-continue/certificat-data","desc": "Module 1 (ouvrable seul) : rôle data/IA, stratégie entreprise pilotée par l'IA, hype vs valeur.","x": 4.0,"y": 2.45,"themes": ["decideurs"],"connexe": false,"color": "#0D9488","langue": "Anglais","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "4 j.","duree_jours": 4,"audience_individu": true,"audience_entreprise": false},{"id": 11,"nom": "CAS Data science — Module 2 : AI foundations & applications","org": "UNIL / EPFL (HEC Lausanne)","org_key": "UNIL/EPFL","cat": "Formation courte","niveau": "Débutant","duree": "4 jours","public": "Individu","lien": "https://execed.unil.ch/formation-continue/from-data-to-insights","desc": "Module 2 : introduction pratique ML/IA/GenAI, architectures, visualisation, outils.","x": 3.5,"y": 2.5,"themes": ["initiation","technique"],"connexe": false,"color": "#0D9488","langue": "Anglais","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "4 j.","duree_jours": 4,"audience_individu": true,"audience_entreprise": false},{"id": 12,"nom": "CAS Data science — Module 3 : Managing data as an asset","org": "UNIL / EPFL (HEC Lausanne)","org_key": "UNIL/EPFL","cat": "Formation courte","niveau": "Débutant","duree": "4 jours","public": "Individu","lien": "https://execed.unil.ch/formation-continue/managing-data","desc": "Module 3 : gouvernance, qualité, culture data (CC CDQ).","x": 3.8,"y": 2.55,"themes": ["gouvernance"],"connexe": false,"color": "#0D9488","langue": "Anglais","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "4 j.","duree_jours": 4,"audience_individu": true,"audience_entreprise": false},{"id": 13,"nom": "CAS Data science — Module 4 : Data & AI innovation, risks, privacy","org": "UNIL / EPFL (HEC Lausanne)","org_key": "UNIL/EPFL","cat": "Formation courte","niveau": "Débutant","duree": "4 jours","public": "Individu","lien": "https://execed.unil.ch/formation-continue/data-innovation-privacy-risks","desc": "Module 4 (parcours CAS) : risques, éthique, privacy, responsible data sharing.","x": 3.7,"y": 2.6,"themes": ["gouvernance"],"connexe": false,"color": "#0D9488","langue": "Anglais","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "4 j.","duree_jours": 4,"audience_individu": true,"audience_entreprise": false},{"id": 14,"nom": "Protection des données & IA","org": "UNIL (HEC Lausanne)","org_key": "UNIL/EPFL","cat": "Formation courte","niveau": "Débutant","duree": "Formation courte — nb de jours à confirmer","public": "Individu","lien": "https://execed.unil.ch/formation-continue/protection-des-donnees-ia","desc": "Cours complémentaire : risques métiers/juridiques/techniques ; gouvernance data & IA ; changement numérique responsable.","x": 3.5,"y": 2.2,"themes": ["gouvernance"],"connexe": false,"color": "#0D9488","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "à confirmer","duree_jours": null,"audience_individu": true,"audience_entreprise": false},{"id": 15,"nom": "AI for Decision Makers / Enabling Innovation with Data Science","org": "SDSC / EPFL","org_key": "SDSC","cat": "Formation courte","niveau": "Intermédiaire","duree": "5 jours (35 h)","public": "Individu / Entreprise","lien": "https://datascience.ch/short-trainings-workshops","desc": "Cours executive 5 jours pour décideurs : cycle de vie data science/IA (ML → agents), hands-on no-code, cas SDSC. Intitulé catalogue SDSC : AI for Decision Makers ; listing Formation Continue UNIL-EPFL : Enabling Innovation with Data Science (même famille / contenu très proche).","x": 4.1,"y": 2.65,"themes": ["decideurs","technique","llm"],"connexe": false,"color": "#16A34A","langue": "Anglais","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "5 j.","duree_jours": 5,"audience_individu": true,"audience_entreprise": true},{"id": 16,"nom": "Innovate with AI and Tech","org": "IMD / EPFL","org_key": "IMD","cat": "Formation courte","niveau": "Intermédiaire","duree": "5 jours","public": "Individu","lien": "https://www.imd.org/digital-transformation/iait/innovate-ai-technologies/","desc": "Programme intensif 5 jours IMD+EPFL : opportunités IA/IoT/robotique, labs EPFL, AI Clinic, prototypage sur un défi business.","x": 4.2,"y": 2.7,"themes": ["decideurs"],"connexe": false,"color": "#7C3AED","langue": "Anglais","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "5 j.","duree_jours": 5,"audience_individu": true,"audience_entreprise": false},{"id": 17,"nom": "Leading Digital and AI Transformation","org": "IMD","org_key": "IMD","cat": "Formation courte","niveau": "Avancé","duree": "5 jours","public": "Individu","lien": "https://www.imd.org/digital-transformation/ldait/leading-digital-ai-transformation/","desc": "5 jours : roadmap transformation digitale & IA (stratégie, exécution, data, agentic AI, plateformes, éthique).","x": 4.3,"y": 2.75,"themes": ["decideurs","gouvernance"],"connexe": false,"color": "#7C3AED","langue": "Anglais","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "5 j.","duree_jours": 5,"audience_individu": true,"audience_entreprise": false},{"id": 18,"nom": "AI and Machine Learning Essentials","org": "EPFL","org_key": "UNIL/EPFL","cat": "Formation courte","niveau": "Débutant","duree": "2 jours","public": "Individu","lien": "https://www.formation-continue-unil-epfl.ch/formation/ai-ml-essentials/","desc": "2 jours pour non-techniques : panorama ML/AI/GenAI, pipeline, LLM, prompting, outils.","x": 3.0,"y": 1.85,"themes": ["initiation"],"connexe": false,"color": "#0D9488","langue": "Anglais","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "2 j.","duree_jours": 2,"audience_individu": true,"audience_entreprise": false},{"id": 19,"nom": "AI Governance and regulatory frameworks","org": "EPFL / UNIL","org_key": "UNIL/EPFL","cat": "Formation courte","niveau": "Intermédiaire","duree": "3 jours","public": "Individu","lien": "https://www.formation-continue-unil-epfl.ch/formation/ai-governance-regulatory-frameworks/","desc": "3 jours : technologies IA, paysage réglementaire UE/Suisse, guidelines internes et AI literacy.","x": 3.6,"y": 2.25,"themes": ["gouvernance"],"connexe": false,"color": "#0D9488","langue": "Anglais","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "3 j.","duree_jours": 3,"audience_individu": true,"audience_entreprise": false},{"id": 20,"nom": "IA : usages et implications sociétales","org": "UNIL / EPFL","org_key": "UNIL/EPFL","cat": "Formation courte","niveau": "Débutant","duree": "2 jours","public": "Individu","lien": "https://www.formation-continue-unil-epfl.ch/formation/ia-usages-implications-societales/","desc": "2 jours : fondements, usages et enjeux éthiques/politiques de l'IA, avec expérimentations.","x": 1.8,"y": 1.85,"themes": ["gouvernance","initiation"],"connexe": false,"color": "#0D9488","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "2 j.","duree_jours": 2,"audience_individu": true,"audience_entreprise": false},{"id": 21,"nom": "Digital & IA dans l'organisation","org": "UNIL (HEC Lausanne)","org_key": "UNIL/EPFL","cat": "Formation courte","niveau": "Intermédiaire","duree": "3 jours","public": "Individu","lien": "https://execed.unil.ch/formation-continue/digital-ia-dans-l-organisation","desc": "3 jours : enjeux stratégiques et opérationnels de la transformation digitale et de l'IA (culture, gouvernance, parcours client, processus).","x": 3.8,"y": 2.3,"themes": ["decideurs"],"connexe": false,"color": "#0D9488","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "3 j.","duree_jours": 3,"audience_individu": true,"audience_entreprise": false},{"id": 22,"nom": "Advanced LLM Applications and Agentic Systems","org": "SDSC","org_key": "SDSC","cat": "Workshop","niveau": "Avancé","duree": "1 jour (7 h)","public": "Individu / Entreprise","lien": "https://datascience.ch/short-trainings-workshops","desc": "Workshop hands-on SDSC : LLM structurés, RAG, systèmes agentiques, évaluation, prototype→prod.","x": 5.0,"y": 1.35,"themes": ["llm","technique"],"connexe": false,"color": "#16A34A","langue": "Anglais (DE/FR/IT sur demande)","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "1 j.","duree_jours": 1,"audience_individu": true,"audience_entreprise": true},{"id": 23,"nom": "AI in Production: Introduction to MLOps","org": "SDSC","org_key": "SDSC","cat": "Workshop","niveau": "Avancé","duree": "1 jour (7 h)","public": "Individu / Entreprise","lien": "https://datascience.ch/short-trainings-workshops","desc": "Workshop SDSC : notebooks → production (DevOps→MLOps, CI/CD ML, monitoring).","x": 5.0,"y": 1.45,"themes": ["mlops","technique"],"connexe": false,"color": "#16A34A","langue": "Anglais (DE/FR/IT sur demande)","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "1 j.","duree_jours": 1,"audience_individu": true,"audience_entreprise": true},{"id": 24,"nom": "Introduction to Knowledge Graphs","org": "SDSC","org_key": "SDSC","cat": "Workshop","niveau": "Avancé","duree": "1 jour (6 h)","public": "Individu / Entreprise","lien": "https://datascience.ch/short-trainings-workshops","desc": "Workshop SDSC : RDF/W3C vs Neo4j, ontologies, architectures KG, complémentarité KG↔LLM.","x": 5.0,"y": 1.25,"themes": ["technique"],"connexe": false,"color": "#16A34A","langue": "Anglais (DE/FR/IT sur demande)","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "1 j.","duree_jours": 1,"audience_individu": true,"audience_entreprise": true},{"id": 25,"nom": "How to adopt AI ethically and responsibly","org": "SDSC","org_key": "SDSC","cat": "Workshop","niveau": "Intermédiaire","duree": "1 jour (7 h)","public": "Individu / Entreprise","lien": "https://datascience.ch/short-trainings-workshops","desc": "Workshop SDSC : éthique IA, frameworks de gouvernance, 4 principes (safety, privacy, fairness, transparency).","x": 3.4,"y": 1.4,"themes": ["gouvernance"],"connexe": false,"color": "#16A34A","langue": "Anglais (DE/FR/IT sur demande)","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "1 j.","duree_jours": 1,"audience_individu": true,"audience_entreprise": true},{"id": 26,"nom": "Causal Inference & Discovery","org": "SDSC","org_key": "SDSC","cat": "Workshop","niveau": "Avancé","duree": "1 jour (8 h)","public": "Individu / Entreprise","lien": "https://datascience.ch/short-trainings-workshops","desc": "Workshop SDSC : cadre causal (discovery + inference), au-delà des corrélations ; hands-on Python.","x": 5.0,"y": 1.55,"themes": ["technique"],"connexe": false,"color": "#16A34A","langue": "Anglais (DE/FR/IT sur demande)","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "1 j.","duree_jours": 1,"audience_individu": true,"audience_entreprise": true},{"id": 27,"nom": "Reinforcement Learning: from zero to MuZero","org": "SDSC","org_key": "SDSC","cat": "Workshop","niveau": "Avancé","duree": "15 h (≈ 2 j.)","public": "Individu / Entreprise","lien": "https://datascience.ch/short-trainings-workshops","desc": "Workshop technique SDSC : RL des fondements à AlphaZero/MuZero/AlphaStar.","x": 5.0,"y": 1.9,"themes": ["technique"],"connexe": false,"color": "#16A34A","langue": "Anglais (DE/FR/IT sur demande)","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "≈ 2 j.","duree_jours": 2,"audience_individu": true,"audience_entreprise": true},{"id": 28,"nom": "Bias mitigation techniques in Machine Learning models","org": "SDSC","org_key": "SDSC","cat": "Workshop","niveau": "Intermédiaire","duree": "1 heure","public": "Individu / Entreprise","lien": "https://datascience.ch/short-trainings-workshops","desc": "Séminaire court SDSC sur les techniques de mitigation des biais (pre/in/post-processing).","x": 4.8,"y": 1.05,"themes": ["gouvernance","technique"],"connexe": false,"color": "#16A34A","langue": "Anglais (DE/FR/IT sur demande)","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "1 h","duree_jours": 0.125,"audience_individu": true,"audience_entreprise": true},{"id": 29,"nom": "Machine Learning Operations (MLOps) — HEIG-VD","org": "HEIG-VD / Swiss AI Center","org_key": "HEIG-VD","cat": "Workshop","niveau": "Intermédiaire","duree": "2 jours","public": "Individu / Entreprise","lien": "https://heig-vd.ch/formation/formation-continue/formation-courte-en-machine-learning-operations","desc": "Formation courte 2 jours : MLOps depuis un notebook Jupyter jusqu'au déploiement cloud automatisé.","x": 4.9,"y": 1.95,"themes": ["mlops","technique"],"connexe": false,"color": "#EA580C","langue": "Français / Anglais","langue_label": "FR / EN","lang_codes": ["FR","EN"],"duree_tag": "2 j.","duree_jours": 2,"audience_individu": true,"audience_entreprise": true},{"id": 30,"nom": "Prompt Engineering (Swiss AI Center)","org": "HES-SO / Swiss AI Center","org_key": "Swiss AI Center","cat": "Workshop","niveau": "Débutant","duree": "½ jour","public": "Entreprise","lien": "https://www.hes-so.ch/swiss-ai-center/formations","desc": "½ jour : prompts avancés (RGC, Few-Shot, CoT), comparaison d'outils, cas pro, éthique.","x": 2.1,"y": 1.15,"themes": ["initiation","llm"],"connexe": false,"color": "#CA8A04","langue": "Français / Anglais","langue_label": "FR / EN","lang_codes": ["FR","EN"],"duree_tag": "½ j.","duree_jours": 0.5,"audience_individu": false,"audience_entreprise": true},{"id": 31,"nom": "Premiers pas en IA (Swiss AI Center)","org": "HES-SO / Swiss AI Center","org_key": "Swiss AI Center","cat": "Workshop","niveau": "Débutant","duree": "½ jour","public": "Individu / Entreprise","lien": "https://www.hes-so.ch/swiss-ai-center/formations","desc": "½ jour d'initiation : vocabulaire, opportunités/risques, modalités (image, texte, séries temporelles).","x": 1.9,"y": 1.15,"themes": ["initiation"],"connexe": false,"color": "#CA8A04","langue": "Français / Anglais","langue_label": "FR / EN","lang_codes": ["FR","EN"],"duree_tag": "½ j.","duree_jours": 0.5,"audience_individu": true,"audience_entreprise": true},{"id": 32,"nom": "1-day deep dive sur l'IA (Swiss AI Center)","org": "HES-SO / Swiss AI Center","org_key": "Swiss AI Center","cat": "Workshop","niveau": "Débutant","duree": "1 jour","public": "Individu / Entreprise","lien": "https://www.hes-so.ch/swiss-ai-center/formations","desc": "1 jour : état de l'art et identification d'opportunités via cas entreprise.","x": 2.4,"y": 1.4,"themes": ["initiation","decideurs"],"connexe": false,"color": "#CA8A04","langue": "Français / Anglais","langue_label": "FR / EN","lang_codes": ["FR","EN"],"duree_tag": "1 j.","duree_jours": 1,"audience_individu": true,"audience_entreprise": true},{"id": 33,"nom": "IA générative – Niveau 1 : maîtriser les usages","org": "Romandie Formation","org_key": "Romandie Formation","cat": "Workshop","niveau": "Débutant","duree": "1 jour","public": "Individu","lien": "https://www.romandieformation.ch/formations/competences-efficacite-personnelle/intelligence-artificielle-generative/","desc": "1 jour : fondamentaux GenAI, prompting, outils multi-formats, usages entreprise, éthique.","x": 2.0,"y": 1.3,"themes": ["initiation","llm"],"connexe": false,"color": "#E11D48","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "1 j.","duree_jours": 1,"audience_individu": true,"audience_entreprise": false},{"id": 34,"nom": "IA générative – Niveau 2 : créer son assistant IA","org": "Romandie Formation","org_key": "Romandie Formation","cat": "Workshop","niveau": "Intermédiaire","duree": "1 jour","public": "Individu","lien": "https://www.romandieformation.ch/formations/competences-efficacite-personnelle/ia-generative-niveau-2-creer-son-assistant-ia/","desc": "1 jour : créer un GPT/assistant, connecteurs, Copilot.","x": 2.2,"y": 1.4,"themes": ["initiation","llm"],"connexe": false,"color": "#E11D48","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "1 j.","duree_jours": 1,"audience_individu": true,"audience_entreprise": false},{"id": 35,"nom": "IA en entreprise : de la théorie à la pratique","org": "Romandie Formation","org_key": "Romandie Formation","cat": "Workshop","niveau": "Débutant","duree": "1 jour","public": "Individu","lien": "https://www.romandieformation.ch/","desc": "Atelier : fondamentaux ML/DL/GenAI, applications, méthodologie projet, risques.","x": 2.6,"y": 1.45,"themes": ["praticien","initiation"],"connexe": false,"color": "#E11D48","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "1 j.","duree_jours": 1,"audience_individu": true,"audience_entreprise": false},{"id": 36,"nom": "IA générative pour les métiers des ressources humaines","org": "Romandie Formation","org_key": "Romandie Formation","cat": "Workshop","niveau": "Débutant","duree": "1 jour","public": "Individu","lien": "https://www.romandieformation.ch/formations/competences-efficacite-personnelle/ia-generative-pour-metiers-ressources-humaines/","desc": "Atelier RH : HR prompting, recrutement, admin RH, onboarding, conformité.","x": 2.0,"y": 1.35,"themes": ["vertical","llm"],"connexe": false,"color": "#E11D48","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "1 j.","duree_jours": 1,"audience_individu": true,"audience_entreprise": false},{"id": 37,"nom": "IA générative pour les métiers de la finance","org": "Romandie Formation","org_key": "Romandie Formation","cat": "Workshop","niveau": "Débutant","duree": "1 jour","public": "Individu","lien": "https://www.romandieformation.ch/","desc": "Atelier finance : prompting tableur, rapports, hallucinations, confidentialité.","x": 2.05,"y": 1.42,"themes": ["vertical","llm"],"connexe": false,"color": "#E11D48","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "1 j.","duree_jours": 1,"audience_individu": true,"audience_entreprise": false},{"id": 38,"nom": "IA générative pour les métiers de la gestion de projet","org": "Romandie Formation","org_key": "Romandie Formation","cat": "Workshop","niveau": "Intermédiaire","duree": "1 jour","public": "Individu","lien": "https://www.romandieformation.ch/formations/competences-efficacite-personnelle/lintelligence-artificielle-generative-pour-les-metiers-de-la-gestion-de-projet/","desc": "Atelier PM : PMI-CPMAI, prompting, MCP, automatisation, RAG/gouvernance.","x": 2.3,"y": 1.5,"themes": ["vertical","llm"],"connexe": false,"color": "#E11D48","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "1 j.","duree_jours": 1,"audience_individu": true,"audience_entreprise": false},{"id": 39,"nom": "Atelier IA : fabrique et critique de l'image en C3","org": "EPFL (Centre LEARN)","org_key": "EPFL LEARN","cat": "Workshop","niveau": "Débutant","duree": "1 jour","public": "Individu","lien": "https://www.formation-continue-unil-epfl.ch/formation/education-numerique-pratique/","desc": "1 jour enseignant·e·s : création d'images GenAI et regard critique.","x": 1.5,"y": 1.3,"themes": ["vertical","initiation"],"connexe": false,"color": "#38BDF8","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "1 j.","duree_jours": 1,"audience_individu": true,"audience_entreprise": false},{"id": 40,"nom": "Atelier Intelligence artificielle en classe de secondaire","org": "EPFL (Centre LEARN)","org_key": "EPFL LEARN","cat": "Workshop","niveau": "Débutant","duree": "1 jour","public": "Individu","lien": "https://www.formation-continue-unil-epfl.ch/formation/education-numerique-pratique/","desc": "1 jour : outils IA pour enseignant·e·s, séances pédagogiques, éthique, esprit critique élèves.","x": 1.4,"y": 1.4,"themes": ["vertical","initiation"],"connexe": false,"color": "#38BDF8","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "1 j.","duree_jours": 1,"audience_individu": true,"audience_entreprise": false},{"id": 41,"nom": "Art génératif : histoire, p5.js et IA","org": "EPFL / UNIL","org_key": "UNIL/EPFL","cat": "Workshop","niveau": "Débutant","duree": "2 jours","public": "Individu","lien": "https://www.formation-continue-unil-epfl.ch/formation/art-generatif/","desc": "2 jours : histoire de l'art génératif, codage créatif p5.js, création avec IA.","x": 1.6,"y": 1.9,"themes": ["vertical","technique"],"connexe": false,"color": "#0D9488","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "2 j.","duree_jours": 2,"audience_individu": true,"audience_entreprise": false},{"id": 42,"nom": "Apertus for NGOs (open-source LLM)","org": "EPFL AI Center","org_key": "UNIL/EPFL","cat": "Workshop","niveau": "Intermédiaire","duree": "½ jour (~3h30)","public": "Entreprise (ONG)","lien": "https://ai.epfl.ch/events/","desc": "Workshop hands-on pour ONG : utiliser/déployer Apertus (LLM open-source suisse).","x": 2.8,"y": 1.2,"themes": ["llm"],"connexe": false,"color": "#0D9488","langue": "Anglais","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "½ j.","duree_jours": 0.5,"audience_individu": false,"audience_entreprise": true},{"id": 43,"nom": "Workshop IA en pratique et en société","org": "UNIL (HEC Lausanne)","org_key": "UNIL/EPFL","cat": "Workshop","niveau": "Intermédiaire","duree": "2 jours","public": "Individu","lien": "https://www.unil.ch/events/fr/1779368669038","desc": "Workshop interdisciplinaire 2 jours : usages, gouvernance, régulation, durabilité, éthique, souveraineté.","x": 3.2,"y": 1.95,"themes": ["gouvernance"],"connexe": false,"color": "#0D9488","langue": "Français / Anglais","langue_label": "FR / EN","lang_codes": ["FR","EN"],"duree_tag": "2 j.","duree_jours": 2,"audience_individu": true,"audience_entreprise": false},{"id": 44,"nom": "Generative AI for Business Sprint","org": "IMD","org_key": "IMD","cat": "Workshop","niveau": "Débutant","duree": "1 semaine (sprint en ligne, ~1–2 h/jour)","public": "Individu","lien": "https://www.imd.org/sprint/generative-ai/","desc": "Sprint en ligne 1 semaine : GenAI & agentic AI pour le business.","x": 3.3,"y": 2.35,"themes": ["initiation","llm"],"connexe": false,"color": "#7C3AED","langue": "Anglais","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "1 sem.","duree_jours": null,"audience_individu": true,"audience_entreprise": false},{"id": 45,"nom": "Leading Teams in the AI Era Sprint","org": "IMD","org_key": "IMD","cat": "Workshop","niveau": "Intermédiaire","duree": "1 semaine (sprint en ligne)","public": "Individu","lien": "https://www.imd.org/lp/online-digital-programs/","desc": "Sprint en ligne 1 semaine : management d'équipe à l'ère de l'IA.","x": 3.6,"y": 2.4,"themes": ["decideurs"],"connexe": false,"color": "#7C3AED","langue": "Anglais","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "1 sem.","duree_jours": null,"audience_individu": true,"audience_entreprise": false},{"id": 46,"nom": "Digital and AI Transformation for Boards","org": "IMD","org_key": "IMD","cat": "Workshop","niveau": "Avancé","duree": "2 jours","public": "Individu","lien": "https://www.imd.org/governance/dtb/digital-transformation-for-boards/","desc": "2 jours pour conseils d'administration : GenAI/LLM, cyber, éthique digitale.","x": 4.5,"y": 2.0,"themes": ["decideurs","gouvernance"],"connexe": false,"color": "#7C3AED","langue": "Anglais","langue_label": "EN","lang_codes": ["EN"],"duree_tag": "2 j.","duree_jours": 2,"audience_individu": true,"audience_entreprise": false},{"id": 47,"nom": "Cohorte IA","org": "Innovaud","org_key": "Innovaud","cat": "Programme collectif","niveau": "Débutant","duree": "~2 mois (parcours collectif)","public": "Entreprise","lien": "https://www.innovaud.ch/","desc": "Parcours collectif ~2 mois pour PME vaudoises : activer l'IA sur un cas concret d'entreprise.","x": 2.7,"y": 3.2,"themes": ["praticien","decideurs"],"connexe": false,"color": "#14532D","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "2 mois","duree_jours": null,"audience_individu": false,"audience_entreprise": true},{"id": 48,"nom": "IA responsable / Numérique Responsable (ISIT-CH)","org": "ISIT-CH","org_key": "ISIT-CH","cat": "Programme collectif","niveau": "","duree": "Durée à confirmer","public": "Entreprise","lien": "https://isit-ch.org/","desc": "Formations/ateliers Numérique Responsable & IA responsable, soutenus par l'État de Vaud.","x": 3.1,"y": 2.15,"themes": [],"connexe": false,"color": "#64748B","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "à confirmer","duree_jours": null,"audience_individu": false,"audience_entreprise": true},{"id": 49,"nom": "Trust4SMEs","org": "Trust Valley","org_key": "Trust Valley","cat": "Programme collectif","niveau": "Intermédiaire","duree": "10–12 mois (+10 ateliers)","public": "Entreprise","lien": "https://trustvalley.swiss/trust4smes/","desc": "Programme 10–12 mois cybersécurité & confiance numérique pour PME (soutien Canton de Vaud).","x": 3.0,"y": 3.85,"themes": ["gouvernance"],"connexe": true,"color": "#1C1917","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "10–12 mois","duree_jours": null,"audience_individu": false,"audience_entreprise": true,"fiche_tags": ["Cybersécurité"]},{"id": 50,"nom": "That's AI","org": "EPFL Extension School","org_key": "UNIL/EPFL","cat": "Parcours libre","niveau": "Débutant","duree": "Autorythme (gratuit, en ligne)","public": "Individu","lien": "https://thatsai.ch/","desc": "Parcours de découverte en ligne gratuit : démystifier l'IA pour un large public.","x": 1.3,"y": 1.05,"themes": ["initiation"],"connexe": false,"color": "#0D9488","langue": "Français / Anglais","langue_label": "FR / EN","lang_codes": ["FR","EN"],"duree_tag": "autorythme","duree_jours": null,"audience_individu": true,"audience_entreprise": false},{"id": 51,"nom": "Workshop « Créer son agent IA »","org": "CVCI","org_key": "CVCI","cat": "Workshop","niveau": "Débutant","duree": "4 h (4 × 1 h en ligne)","public": "Entreprise","lien": "https://cvci.ch/evenements/workshop-creer-son-agent-ia","desc": "Atelier pratique Kooperativ.ai / CVCI : concevoir et déployer un agent IA sur une tâche répétitive du quotidien (4 × 1 h en ligne).","x": 2.35,"y": 1.22,"themes": ["initiation","llm","praticien"],"connexe": false,"color": "#0369A1","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "4 h","duree_jours": 0.5,"audience_individu": false,"audience_entreprise": true},{"id": 52,"nom": "Référencer son site en 2026 : visibilité IA / GEO","org": "CVCI","org_key": "CVCI","cat": "Workshop","niveau": "Intermédiaire","duree": "Module court — nb d'heures à confirmer","public": "Entreprise","lien": "https://cvci.ch/services/se-former/nos-formations-diverses","desc": "Module CVCI : GEO (Generative Engine Optimization) et visibilité dans les réponses des moteurs génératifs (ChatGPT, Gemini, Copilot, Perplexity).","x": 2.15,"y": 1.38,"themes": ["vertical","llm"],"connexe": false,"color": "#0369A1","langue": "Français","langue_label": "FR","lang_codes": ["FR"],"duree_tag": "à confirmer","duree_jours": null,"audience_individu": false,"audience_entreprise": true}],"themes": [{"id": "initiation","label": "Initiation GenAI"},{"id": "decideurs","label": "Décideurs / stratégie"},{"id": "gouvernance","label": "Gouvernance / éthique"},{"id": "mlops","label": "MLOps / production"},{"id": "llm","label": "LLM / agents"},{"id": "technique","label": "Technique avancée"},{"id": "praticien","label": "Praticien métier"},{"id": "vertical","label": "Vertical métier"}],"orgs": [{"id": "EPFL LEARN","color": "#38BDF8"},{"id": "UNIL/EPFL","color": "#0D9488"},{"id": "SDSC","color": "#16A34A"},{"id": "IMD","color": "#7C3AED"},{"id": "HEIG-VD","color": "#EA580C"},{"id": "Swiss AI Center","color": "#CA8A04"},{"id": "Romandie Formation","color": "#E11D48"},{"id": "SAWI","color": "#DB2777"},{"id": "CEFCO","color": "#9A3412"},{"id": "Innovaud","color": "#14532D"},{"id": "ISIT-CH","color": "#64748B"},{"id": "Trust Valley","color": "#1C1917"},{"id": "CVCI","color": "#0369A1"}],"matrix": {"EPFL LEARN": {"initiation": ["Atelier IA : fabrique et critique de l'image en C3","Atelier Intelligence artificielle en classe de secondaire"],"decideurs": [],"gouvernance": [],"mlops": [],"llm": [],"technique": [],"praticien": [],"vertical": ["Atelier IA : fabrique et critique de l'image en C3","Atelier Intelligence artificielle en classe de secondaire"]},"UNIL/EPFL": {"initiation": ["Data science & management (CAS)","CAS Data science — Module 2 : AI foundations & applications","AI and Machine Learning Essentials","IA : usages et implications sociétales","That's AI"],"decideurs": ["Data science & management (CAS)","Transforming Business with AI & Data Tech (CAS Value Chain Data Technologies)","CAS Data science — Module 1 : The data & AI-driven enterprise","Digital & IA dans l'organisation"],"gouvernance": ["Data science & management (CAS)","CAS Data science — Module 3 : Managing data as an asset","CAS Data science — Module 4 : Data & AI innovation, risks, privacy","Protection des données & IA","AI Governance and regulatory frameworks","IA : usages et implications sociétales","Workshop IA en pratique et en société"],"mlops": [],"llm": ["Applied AI: Data Analytics and Machine Learning (DAS)","Apertus for NGOs (open-source LLM)"],"technique": ["Applied AI: Data Analytics and Machine Learning (DAS)","COS Applied Data Analytics and Visualization","COS Applied Machine Learning","CAS Data science — Module 2 : AI foundations & applications","Art génératif : histoire, p5.js et IA"],"praticien": [],"vertical": ["Art génératif : histoire, p5.js et IA"]},"SDSC": {"initiation": [],"decideurs": ["AI for Decision Makers / Enabling Innovation with Data Science"],"gouvernance": ["How to adopt AI ethically and responsibly","Bias mitigation techniques in Machine Learning models"],"mlops": ["AI in Production: Introduction to MLOps"],"llm": ["AI for Decision Makers / Enabling Innovation with Data Science","Advanced LLM Applications and Agentic Systems"],"technique": ["AI for Decision Makers / Enabling Innovation with Data Science","Advanced LLM Applications and Agentic Systems","AI in Production: Introduction to MLOps","Introduction to Knowledge Graphs","Causal Inference & Discovery","Reinforcement Learning: from zero to MuZero","Bias mitigation techniques in Machine Learning models"],"praticien": [],"vertical": []},"IMD": {"initiation": ["Generative AI for Business Sprint"],"decideurs": ["Innovate with AI and Tech","Leading Digital and AI Transformation","Leading Teams in the AI Era Sprint","Digital and AI Transformation for Boards"],"gouvernance": ["Leading Digital and AI Transformation","Digital and AI Transformation for Boards"],"mlops": [],"llm": ["Generative AI for Business Sprint"],"technique": [],"praticien": [],"vertical": []},"HEIG-VD": {"initiation": [],"decideurs": [],"gouvernance": [],"mlops": ["Machine Learning Operations (MLOps) — HEIG-VD"],"llm": [],"technique": ["Machine Learning Operations (MLOps) — HEIG-VD"],"praticien": [],"vertical": []},"Swiss AI Center": {"initiation": ["Prompt Engineering (Swiss AI Center)","Premiers pas en IA (Swiss AI Center)","1-day deep dive sur l'IA (Swiss AI Center)"],"decideurs": ["1-day deep dive sur l'IA (Swiss AI Center)"],"gouvernance": [],"mlops": [],"llm": ["Prompt Engineering (Swiss AI Center)"],"technique": [],"praticien": [],"vertical": []},"Romandie Formation": {"initiation": ["IA générative – Niveau 1 : maîtriser les usages","IA générative – Niveau 2 : créer son assistant IA","IA en entreprise : de la théorie à la pratique"],"decideurs": [],"gouvernance": [],"mlops": [],"llm": ["IA générative – Niveau 1 : maîtriser les usages","IA générative – Niveau 2 : créer son assistant IA","IA générative pour les métiers des ressources humaines","IA générative pour les métiers de la finance","IA générative pour les métiers de la gestion de projet"],"technique": [],"praticien": ["IA en entreprise : de la théorie à la pratique"],"vertical": ["IA générative pour les métiers des ressources humaines","IA générative pour les métiers de la finance","IA générative pour les métiers de la gestion de projet"]},"SAWI": {"initiation": ["Praticien en Intelligence Artificielle"],"decideurs": [],"gouvernance": [],"mlops": [],"llm": ["Praticien en Intelligence Artificielle"],"technique": [],"praticien": ["Praticien en Intelligence Artificielle","Spécialiste en Intelligence Artificielle Marketing et Communication"],"vertical": ["Spécialiste en Intelligence Artificielle Marketing et Communication"]},"CEFCO": {"initiation": ["Gestionnaire en IA / Praticien·ne de la transformation IA"],"decideurs": ["Brevet fédéral AI Business Specialist","Pilote de la transformation IA"],"gouvernance": ["Brevet fédéral AI Business Specialist"],"mlops": [],"llm": [],"technique": [],"praticien": ["Brevet fédéral AI Business Specialist","Gestionnaire en IA / Praticien·ne de la transformation IA","Pilote de la transformation IA"],"vertical": []},"Innovaud": {"initiation": [],"decideurs": ["Cohorte IA"],"gouvernance": [],"mlops": [],"llm": [],"technique": [],"praticien": ["Cohorte IA"],"vertical": []},"ISIT-CH": {"initiation": [],"decideurs": [],"gouvernance": [],"mlops": [],"llm": [],"technique": [],"praticien": [],"vertical": []},"Trust Valley": {"initiation": [],"decideurs": [],"gouvernance": ["Trust4SMEs"],"mlops": [],"llm": [],"technique": [],"praticien": [],"vertical": []},"CVCI": {"initiation": ["Workshop « Créer son agent IA »"],"decideurs": [],"gouvernance": [],"mlops": [],"llm": ["Workshop « Créer son agent IA »","Référencer son site en 2026 : visibilité IA / GEO"],"technique": [],"praticien": ["Workshop « Créer son agent IA »"],"vertical": ["Référencer son site en 2026 : visibilité IA / GEO"]}}};
+
+const X_LABELS = [
+  [1.2, "Grand public /\nenseignants"],
+  [2.2, "Collaborateur\nmétier"],
+  [3.3, "Manager /\npraticien"],
+  [4.2, "Décideur /\nboard"],
+  [5.0, "Expert\ntechnique"]
+];
+const Y_LABELS = [
+  [1.2, "Atelier (≤1 j.)"],
+  [1.9, "2 jours"],
+  [2.5, "Formation courte (3–5 j.)"],
+  [3.0, "Certificat / diplôme court"],
+  [3.35, "Parcours moyen (mois)"],
+  [3.55, "Diplôme (~100 h)"],
+  [4.0, "CAS / DAS / brevet"]
+];
+
+const CLUSTERS = [
+  {id:"initiation", x:1.3, y:1.05, w:1.5, h:0.55, label:"Initiation GenAI"},
+  {id:"decideurs", x:3.7, y:2.35, w:1.0, h:0.55, label:"Décideurs (3–5 j.)"},
+  {id:"mlops", x:4.6, y:1.2, w:0.7, h:0.9, label:"MLOps"},
+  {id:"gouvernance", x:3.0, y:1.7, w:1.0, h:0.7, label:"Gouvernance"},
+  {id:"praticien", x:2.0, y:3.05, w:1.4, h:0.55, label:"Praticien (parcours)"}
+];
+
+let activeTheme = null;
+let activeAudience = null; // null | "individu" | "entreprise"
+let activeOrg = null; // null = tous
+let selectedId = null;
+
+function xScale(v) { return 110 + (v - 1) * 180; }
+function yScale(v) { return 680 - (v - 1) * 170; }
+
+function isOfferVisible(o) {
+  const visibleOrg = !activeOrg || o.org_key === activeOrg;
+  const visibleTheme = !activeTheme || o.themes.includes(activeTheme);
+  const visibleAudience = matchesAudience(o);
+  return visibleOrg && visibleTheme && visibleAudience;
+}
+
+function lightMatchingOffers() {
+  const matches = DATA.offers.filter(isOfferVisible);
+  if (activeOrg || activeTheme || activeAudience) {
+    if (matches.length === 1) {
+      selectedId = matches[0].id;
+      showDetail(matches[0], { skipMap: true });
+    } else if (selectedId != null && !matches.some(o => o.id === selectedId)) {
+      selectedId = null;
+      const el = document.getElementById("detail");
+      el.innerHTML = `<h2>${matches.length} offres</h2><p>Plusieurs points correspondent au filtre. Cliquez un point pour le détail.</p>`;
+    }
+  }
+}
+
+function renderOrgFilters() {
+  const el = document.getElementById("org-filters");
+  if (!el) return;
+  const buttons = [`<button type="button" data-org="" aria-pressed="${activeOrg ? "false" : "true"}">Tous les organismes</button>`]
+    .concat(DATA.orgs.map(o =>
+      `<button type="button" data-org="${o.id}" aria-pressed="${activeOrg === o.id ? "true" : "false"}"><span class="swatch" style="background:${o.color}"></span><span>${o.id}</span></button>`
+    ));
+  el.innerHTML = buttons.join("");
+  el.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      activeOrg = btn.dataset.org || null;
+      el.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b === btn)));
+      lightMatchingOffers();
+      renderMap();
+    });
+  });
+}
+
+
+function renderAudienceFilters() {
+  const el = document.getElementById("audience-filters");
+  if (!el) return;
+  const opts = [
+    ["", "Tous les publics"],
+    ["individu", "Formation individuelle"],
+    ["entreprise", "Formation entreprise"]
+  ];
+  el.innerHTML = opts.map(([id, label], i) =>
+    `<button type="button" data-audience="${id}" aria-pressed="${i === 0 ? "true" : "false"}">${label}</button>`
+  ).join("");
+  el.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      activeAudience = btn.dataset.audience || null;
+      el.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b === btn)));
+      lightMatchingOffers();
+      renderMap();
+    });
+  });
+}
+
+function matchesAudience(o) {
+  if (!activeAudience) return true;
+  if (activeAudience === "individu") return !!o.audience_individu;
+  if (activeAudience === "entreprise") return !!o.audience_entreprise;
+  return true;
+}
+
+function renderThemeFilters() {
+  const el = document.getElementById("theme-filters");
+  const buttons = [`<button type="button" data-theme="" aria-pressed="true">Tous les thèmes</button>`]
+    .concat(DATA.themes.map(t => `<button type="button" data-theme="${t.id}" aria-pressed="false">${t.label}</button>`));
+  el.innerHTML = buttons.join("");
+  el.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      activeTheme = btn.dataset.theme || null;
+      el.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b === btn)));
+      lightMatchingOffers();
+      renderMap();
+    });
+  });
+}
+
+function langFlagsHtml(o) {
+  const codes = o.lang_codes || [];
+  if (!codes.length) return "";
+  const src = { FR: "assets/flag-fr.png", EN: "assets/flag-en.png" };
+  const label = { FR: "Français", EN: "Anglais" };
+  return `<div class="lang-flags" aria-label="Langue: ${o.langue_label || codes.join(" / ")}">` +
+    codes.map(c => `<span class="lang-flag" title="${label[c] || c}"><img src="${src[c]}" alt="${label[c] || c}" /></span>`).join("") +
+    `</div>`;
+}
+
+function dureeTagHtml(o) {
+  const tag = o.duree_tag || "";
+  if (!tag) return "";
+  const soft = ["autorythme", "à confirmer", "parcours long", "parcours hybride", "certificat", "2 mois", "2 mois", "1 sem.", "10–12 mois", "39 h / 2 mois", "31 h / 2 mois"].includes(tag);
+  const cls = soft ? "duree-tag soft" : "duree-tag";
+  const title = o.duree || tag;
+  return `<span class="${cls}" title="${title}">${tag}</span>`;
+}
+
+function showDetail(o, opts = {}) {
+  selectedId = o ? o.id : null;
+  const el = document.getElementById("detail");
+  if (!o) {
+    el.innerHTML = `<h2>Sélectionnez une offre</h2><p>Survolez ou cliquez un point.</p>`;
+    if (!opts.skipMap) renderMap();
+    return;
+  }
+  const themes = o.themes.map(t => DATA.themes.find(x => x.id === t)?.label || t);
+  const extra = (o.fiche_tags || []);
+  const chips = themes.concat(extra);
+  el.innerHTML = `
+    <div class="detail-top-right">${dureeTagHtml(o)}${langFlagsHtml(o)}</div>
+    <h2>${o.nom}</h2>
+    <p class="meta"><strong>${o.org_key}</strong> · ${o.cat} · ${o.public}</p>
+    <p>${o.desc || ""}</p>
+    <div class="chips">${chips.map(t => `<span class="chip">${t}</span>`).join("")}</div>
+    ${o.lien ? `<p style="margin-top:10px"><a href="${o.lien}" target="_blank" rel="noopener">Ouvrir la fiche</a></p>` : ""}
+    ${o.connexe ? `<p class="note">Offre connexe (cyber), hors IA pure.</p>` : ""}
+  `;
+  if (!opts.skipMap) renderMap();
+}
+
+function renderMap() {
+  const svg = document.getElementById("map");
+  const pad = 40;
+  let html = "";
+  // axes
+  html += `<line x1="110" y1="680" x2="940" y2="680" stroke="#a8a29e" stroke-width="1.5" />`;
+  html += `<line x1="110" y1="680" x2="110" y2="60" stroke="#a8a29e" stroke-width="1.5" />`;
+  html += `<text class="axis-label" x="520" y="755" text-anchor="middle">Public cible →</text>`;
+  html += `<text class="axis-label" x="28" y="370" text-anchor="middle" transform="rotate(-90 28 370)">Intensité / durée →</text>`;
+
+  X_LABELS.forEach(([v, label]) => {
+    const x = xScale(v);
+    html += `<line x1="${x}" y1="680" x2="${x}" y2="688" stroke="#a8a29e" />`;
+    const lines = label.split("\\n");
+    lines.forEach((ln, i) => {
+      html += `<text class="tick" x="${x}" y="${705 + i*14}" text-anchor="middle">${ln}</text>`;
+    });
+  });
+  Y_LABELS.forEach(([v, label]) => {
+    const y = yScale(v);
+    html += `<line x1="102" y1="${y}" x2="110" y2="${y}" stroke="#a8a29e" />`;
+    html += `<text class="tick" x="96" y="${y+4}" text-anchor="end">${label}</text>`;
+  });
+
+  // clusters
+  CLUSTERS.forEach(c => {
+    if (activeTheme && activeTheme !== c.id && !(activeTheme === "llm" && c.id === "initiation") && !(activeTheme === "technique" && c.id === "mlops")) {
+      // still show all clusters lightly unless filtered hard
+    }
+    const x = xScale(c.x);
+    const y = yScale(c.y + c.h);
+    const w = c.w * 180;
+    const h = c.h * 170;
+    const emphasize = !activeTheme || activeTheme === c.id ||
+      (activeTheme === "llm" && c.id === "initiation") ||
+      (activeTheme === "technique" && c.id === "mlops");
+    html += `<rect class="cluster-zone" x="${x}" y="${y}" width="${w}" height="${h}" rx="10" opacity="${emphasize ? 1 : 0.25}" />`;
+    html += `<text class="cluster-label" x="${x + 8}" y="${y + 16}" opacity="${emphasize ? 1 : 0.35}">${c.label}</text>`;
+  });
+
+  const filterOn = !!(activeOrg || activeTheme || activeAudience);
+  DATA.offers.forEach(o => {
+    const visible = isOfferVisible(o);
+    const dim = !visible;
+    const lit = visible && filterOn;
+    const cx = xScale(o.x);
+    const cy = yScale(o.y);
+    const r = o.cat.startsWith("Certificat") ? 9 : o.cat === "Workshop" ? 6 : 7.5;
+    const cls = ["dot", dim ? "dim" : "", lit ? "lit" : "", selectedId === o.id ? "active" : ""].join(" ");
+    html += `<circle class="${cls}" data-id="${o.id}" cx="${cx}" cy="${cy}" r="${r}" fill="${o.color}">
+      <title>${o.nom.replace(/"/g, "'")} — ${o.org_key}</title>
+    </circle>`;
+  });
+
+  svg.innerHTML = html;
+  svg.querySelectorAll(".dot").forEach(dot => {
+    const o = DATA.offers[+dot.dataset.id];
+    dot.addEventListener("mouseenter", () => showDetail(o));
+    dot.addEventListener("click", () => showDetail(o));
+  });
+}
+
+function renderMatrix() {
+  const table = document.getElementById("matrix");
+  let head = `<tr><th class="org">Acteur</th>` + DATA.themes.map(t => `<th>${t.label}</th>`).join("") + `</tr>`;
+  let body = DATA.orgs.map(org => {
+    const cells = DATA.themes.map(t => {
+      const names = DATA.matrix[org.id][t.id] || [];
+      const n = names.length;
+      const cls = n >= 3 ? "hot" : n === 2 ? "warm" : n === 1 ? "cool" : "empty";
+      const title = names.join(" | ").replace(/"/g, "'");
+      return `<td class="${cls}" data-org="${org.id}" data-theme="${t.id}" title="${title}">${n || "·"}</td>`;
+    }).join("");
+    return `<tr><td class="org"><span class="swatch" style="display:inline-block;margin-right:6px;background:${org.color}"></span>${org.id}</td>${cells}</tr>`;
+  }).join("");
+  table.innerHTML = head + body;
+  table.querySelectorAll("td[data-org]").forEach(td => {
+    td.addEventListener("click", () => {
+      const names = DATA.matrix[td.dataset.org][td.dataset.theme] || [];
+      const label = DATA.themes.find(t => t.id === td.dataset.theme)?.label;
+      const box = document.getElementById("matrix-detail");
+      if (!names.length) {
+        box.textContent = `${td.dataset.org} × ${label} : aucune offre.`;
+        return;
+      }
+      box.innerHTML = `<strong>${td.dataset.org} × ${label}</strong> (${names.length})<br>` +
+        names.map(n => `• ${n}`).join("<br>");
+    });
+  });
+}
+
+// tabs
+document.getElementById("tab-map").addEventListener("click", () => {
+  document.getElementById("tab-map").setAttribute("aria-selected", "true");
+  document.getElementById("tab-matrix").setAttribute("aria-selected", "false");
+  document.getElementById("panel-map").classList.add("active");
+  document.getElementById("panel-matrix").classList.remove("active");
+});
+document.getElementById("tab-matrix").addEventListener("click", () => {
+  document.getElementById("tab-matrix").setAttribute("aria-selected", "true");
+  document.getElementById("tab-map").setAttribute("aria-selected", "false");
+  document.getElementById("panel-matrix").classList.add("active");
+  document.getElementById("panel-map").classList.remove("active");
+});
+
+renderOrgFilters();
+renderAudienceFilters();
+renderThemeFilters();
+renderMap();
+renderMatrix();
+</script>
+</body>
+</html>
